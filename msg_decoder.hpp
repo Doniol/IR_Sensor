@@ -5,7 +5,7 @@
 
 class msg_decoder : public rtos::task<>{
 private:
-    rtos::channel<int, 32> pauses;
+    rtos::channel<int, 32> pulses;
     enum class states{idle, message_in_progress};
     states state;
     int count;
@@ -20,20 +20,20 @@ private:
 public:
     msg_decoder(msg_logger & logger):
         task("msg_decoder"),
-        pauses(this, "pauses"),
-        count(0),
+        pulses(this, "pauses"),
+        count(1),
         logger(logger)
     {}
 
-    void send_pause(int sent_pause){
-        pauses.write(sent_pause);
+    void send_pulse(int sent_pulse){
+        pulses.write(sent_pulse);
     }
 
     int decode(int pause){
         if(pause == 800){
-            return 1;
+            return 0;
         }
-        return 0;
+        return 1;
     }
 
     bool check(){
@@ -68,49 +68,90 @@ public:
                 converted_data += 2^(4 - i);
             }
         }
-
+        
         logger.log({converted_player, converted_data});
     }
 
     void main() override{
         state = states::idle;
         for(;;){
-            int pause = pauses.read();
+            int pulse = pulses.read();
+            // hwlib::cout << pulse << "\n";
+            // hwlib::cout << " " << pulse << " " << decode(pulse) << "\n";
+            // hwlib::cout << decode(pulse);
+
             switch(state){
                 case states::idle:
-                    if(pause == 800){
+                    if(pulse == 800){
                         state = states::message_in_progress;
                     }
                     break;
-
+                
                 case states::message_in_progress:
-                    if(pause == 1600 || pause == 800){
-                        if(count < 5){
-                            player[count] = decode(pause);
-                        } else if(count < 10){
-                            data[count - 5] = decode(pause);
-                        } else if(count < 15){
-                            control[count - 10] = decode(pause);
-                        } else if(count < 20){
-                            player2[count - 15] = decode(pause);
-                        } else if(count < 25){
-                            data2[count - 20] = decode(pause);
-                        } else if(count < 30){
-                            control2[count - 25] = decode(pause);
+                    // hwlib::cout << pulse << " " << decode(pulse) << "\n";
+                    if(count == 0 || count == 16){
+                        //ignore
+                    } else if(count < 16){
+                        if(count < 6){
+                            player[count - 1] = decode(pulse);
+                        } else if(count < 11){
+                            data[count - 6] = decode(pulse);
+                        } else if(count < 16){
+                            control[count - 11] = decode(pulse);
                         }
-                        count++;
-                    } else if(pause != 3000){
-                        state = states::idle;
-                        count = 0;
+                    } else if(count < 32){
+                        if(count < 22){
+                            player2[count - 17] = decode(pulse);
+                        } else if(count < 27){
+                            data2[count - 22] = decode(pulse);
+                        } else if(count < 32){
+                            control2[count - 27] = decode(pulse);
+                        }
                     }
-
-                    if(count == 31 && check()){
-                        send();
-                        state = states::idle;
-                        count = 0;
-                    }
-                    break;
+                    count++;
             }
+
+
+            // switch(state){
+            //     case states::idle:
+            //         if(pulse == 800){
+            //             state = states::message_in_progress;
+            //         }
+            //         break;
+
+            //     case states::message_in_progress:
+            //         if(pulse == 1600 || pulse == 800){
+            //             if(count < 5){
+            //                 player[count] = decode(pulse);
+            //             } else if(count < 10){
+            //                 data[count - 5] = decode(pulse);
+            //             } else if(count < 15){
+            //                 control[count - 10] = decode(pulse);
+            //             } else if(count < 20){
+            //                 player2[count - 15] = decode(pulse);
+            //             } else if(count < 25){
+            //                 data2[count - 20] = decode(pulse);
+            //             } else if(count < 30){
+            //                 control2[count - 25] = decode(pulse);
+            //             }
+            //             count++;
+
+            //             if(count == 14){
+            //                 hwlib::cout << " ";
+            //             }
+            //             hwlib::cout << decode(pulse);
+            //         } else if(pulse != 3000){
+            //             state = states::idle;
+            //             count = 1;
+            //         }
+
+            //         if(count == 32 && check()){
+            //             send();
+            //             state = states::idle;
+            //             count = 1;
+            //         }
+            //         break;
+            // }
         }
     }
 };

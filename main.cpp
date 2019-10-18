@@ -1,4 +1,4 @@
-#include "pause_detector.hpp"
+#include "pulse_detector.hpp"
 
 int main(){
     hwlib::wait_ms(500);
@@ -16,7 +16,7 @@ int main(){
 
     auto logger = msg_logger(display);
     auto decoder = msg_decoder(logger);
-    auto detector = pause_detector(decoder, tsop_signal, tsop_gnd, tsop_vdd);
+    auto detector = pulse_detector(decoder, tsop_signal, tsop_gnd, tsop_vdd);
 
     rtos::run();
 }

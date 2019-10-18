@@ -12,7 +12,7 @@
 SOURCES := 
 
 # header files in this project
-HEADERS := pause_detector.hpp msg_decoder.hpp msg_logger.hpp
+HEADERS := pulse_detector.hpp msg_decoder.hpp msg_logger.hpp
 
 # other places to look for files for this project
 SEARCH  := 
