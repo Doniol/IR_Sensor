@@ -6,7 +6,7 @@
 class msg_decoder : public rtos::task<>{
 private:
     rtos::channel<int, 32> pulses;
-    enum class states{idle, message_in_progress};
+    enum class states{receiving, decoding};
     states state;
     int count;
     int player [5];
@@ -16,12 +16,13 @@ private:
     int data2 [5];
     int control2 [5];
     msg_logger & logger;
+    int received_pulses [32];
 
 public:
     msg_decoder(msg_logger & logger):
         task("msg_decoder"),
         pulses(this, "pauses"),
-        count(1),
+        count(0),
         logger(logger)
     {}
 
@@ -51,107 +52,111 @@ public:
                 ans2 = false;
             }
         }
+        // if(ans1 && ans2){
+        //     hwlib::cout << "Check returns True\n";
+        // } else {
+        //     hwlib::cout << "Check returns False\n";
+        // }
         return ans1 && ans2;
     }
 
     void send(){
-        int converted_player = 0;
-        for(unsigned int i = 4; i >= 0; i--){
-            if(player[i] == 1){
-                converted_player += 2^(4 - i);
+        int p = 0;
+        for (int i = 0; i < 5; i++){
+            if(player[4 - i]){
+                p |= 1 << i;
             }
         }
+        int8_t converted_player = p;
 
-        int converted_data = 0;
-        for(unsigned int i = 4; i >= 0; i--){
-            if(data[i] == 1){
-                converted_data += 2^(4 - i);
+        int d = 0;
+        for (int i = 0; i < 5; i++){
+            if(data[4 - i]){
+                d |= 1 << i;
             }
         }
+        int8_t converted_data = d;
         
+        // hwlib::cout << converted_player << " " << converted_data << "\n";
         logger.log({converted_player, converted_data});
     }
 
     void main() override{
-        state = states::idle;
+        state = states::receiving;
+        int pulse = 0;
         for(;;){
-            int pulse = pulses.read();
             // hwlib::cout << pulse << "\n";
             // hwlib::cout << " " << pulse << " " << decode(pulse) << "\n";
             // hwlib::cout << decode(pulse);
 
             switch(state){
-                case states::idle:
-                    if(pulse == 800){
-                        state = states::message_in_progress;
+                case states::receiving:
+                    pulse = pulses.read();
+                    if(pulse == 1600 || pulse == 800){
+                        received_pulses[count] = pulse;
+                        count++;
+                    }
+                    if(count == 32){
+                        state = states::decoding;
                     }
                     break;
                 
-                case states::message_in_progress:
-                    // hwlib::cout << pulse << " " << decode(pulse) << "\n";
-                    if(count == 0 || count == 16){
-                        //ignore
-                    } else if(count < 16){
-                        if(count < 6){
-                            player[count - 1] = decode(pulse);
-                        } else if(count < 11){
-                            data[count - 6] = decode(pulse);
-                        } else if(count < 16){
-                            control[count - 11] = decode(pulse);
-                        }
-                    } else if(count < 32){
-                        if(count < 22){
-                            player2[count - 17] = decode(pulse);
-                        } else if(count < 27){
-                            data2[count - 22] = decode(pulse);
-                        } else if(count < 32){
-                            control2[count - 27] = decode(pulse);
+                case states::decoding:
+                    // for(unsigned int i = 0; i < 32; i++){
+                    //     hwlib::cout << received_pulses[i] << " ";
+                    //     if(i == 15){
+                    //         hwlib::cout << "\n";
+                    //     }
+                    // }
+
+                    for(unsigned int i = 1; i < 32; i++){
+                        if(i < 6){
+                            player[i - 1] = decode(received_pulses[i]);
+                        } else if(i < 11){
+                            data[i - 6] = decode(received_pulses[i]);
+                        } else if(i < 16){
+                            control[i - 11] = decode(received_pulses[i]);
+                        } else if(i < 22){
+                            player2[i - 17] = decode(received_pulses[i]);
+                        } else if(i < 27){
+                            data2[i - 22] = decode(received_pulses[i]);
+                        } else if(i < 32){
+                            control2[i - 27] = decode(received_pulses[i]);
                         }
                     }
-                    count++;
+
+                    // for(unsigned int i = 0; i < 5; i++){
+                    //     hwlib::cout << player[i];
+                    // }
+                    // hwlib::cout << " ";
+                    // for(unsigned int i = 0; i < 5; i++){
+                    //     hwlib::cout << data[i];
+                    // }
+                    // hwlib::cout << " ";
+                    // for(unsigned int i = 0; i < 5; i++){
+                    //     hwlib::cout << control[i];
+                    // }
+                    // hwlib::cout << "\n";
+                    // for(unsigned int i = 0; i < 5; i++){
+                    //     hwlib::cout << player2[i];
+                    // }
+                    // hwlib::cout << " ";
+                    // for(unsigned int i = 0; i < 5; i++){
+                    //     hwlib::cout << data2[i];
+                    // }
+                    // hwlib::cout << " ";
+                    // for(unsigned int i = 0; i < 5; i++){
+                    //     hwlib::cout << control2[i];
+                    // }
+
+                    if(check()){
+                        send();
+                    }                    
+
+                    count = 0;
+                    state = states::receiving;
+                    break;
             }
-
-
-            // switch(state){
-            //     case states::idle:
-            //         if(pulse == 800){
-            //             state = states::message_in_progress;
-            //         }
-            //         break;
-
-            //     case states::message_in_progress:
-            //         if(pulse == 1600 || pulse == 800){
-            //             if(count < 5){
-            //                 player[count] = decode(pulse);
-            //             } else if(count < 10){
-            //                 data[count - 5] = decode(pulse);
-            //             } else if(count < 15){
-            //                 control[count - 10] = decode(pulse);
-            //             } else if(count < 20){
-            //                 player2[count - 15] = decode(pulse);
-            //             } else if(count < 25){
-            //                 data2[count - 20] = decode(pulse);
-            //             } else if(count < 30){
-            //                 control2[count - 25] = decode(pulse);
-            //             }
-            //             count++;
-
-            //             if(count == 14){
-            //                 hwlib::cout << " ";
-            //             }
-            //             hwlib::cout << decode(pulse);
-            //         } else if(pulse != 3000){
-            //             state = states::idle;
-            //             count = 1;
-            //         }
-
-            //         if(count == 32 && check()){
-            //             send();
-            //             state = states::idle;
-            //             count = 1;
-            //         }
-            //         break;
-            // }
         }
     }
 };

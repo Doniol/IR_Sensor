@@ -23,11 +23,11 @@ public:
 
     void process(int pulse){
         if(pulse > 9000 && pulse < 21000){
-            // decoder.send_pulse(1600);
-            hwlib::cout << 1;
+            decoder.send_pulse(1600);
+            // hwlib::cout << 1;
         } else if(pulse > 2000 && pulse < 9000){
-            // decoder.send_pulse(800);
-            hwlib::cout << 0;
+            decoder.send_pulse(800);
+            // hwlib::cout << 0;
         }
     }
 
